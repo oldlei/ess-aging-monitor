@@ -12,7 +12,6 @@
 void app_main(void)
 {
     ESP_LOGI(TAG, "主程序启动...");
-
     // WiFi 初始化
     wifi_smartconfig_init();
     while (!wifi_is_connected()) {

@@ -1,0 +1,31 @@
+# 编译输出
+build/
+sdkconfig.old
+sdkconfig.cmake
+cmake-build-*/
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 日志
+*.log
+
+# 托管组件（不要提交）
+managed_components/
+
+# 编译缓存
+*.cmake
+*.bin
+*.elf
+*.map
+*.json
+
+# 系统文件
+.DS_Store
+
+
+
+esp-idf/

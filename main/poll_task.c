@@ -105,7 +105,18 @@ static void poll_task(void *pvParameters)
                     sent_len = rs485_write_safe(tx_buffer, tx_len);
                     if (sent_len > 0) {
                         ESP_LOGI(TAG, "RS485 CH%d 发送命令%d", ch, cmd_idx + 1);
+                        ESP_LOGI(TAG, "rx_buffer 大小: %d 字节", sizeof(rx_buffer));
+
                         recv_len = rs485_read_safe(rx_buffer, sizeof(rx_buffer), RESPONSE_TIMEOUT_MS);
+                        // todo  调试打印
+                        // 打印十六进制内容（最标准）
+                        ESP_LOGI(TAG, "接收数据十六进制:");
+                        for (int i = 0; i < recv_len; i++) {
+                            printf("%02x ", rx_buffer[i]);
+                        }
+                        printf("\r\n");
+
+
                     } else {
                         recv_len = -1;
                     }
@@ -123,6 +134,16 @@ static void poll_task(void *pvParameters)
                 if (sent_len > 0) {
                     if (recv_len > 0) {
                         // 收到有效回复：转换为十六进制字符串并保存
+                        ESP_LOGI(TAG, "接收数据十六进制长度:%d",recv_len);
+                        ESP_LOGI(TAG, "rx_buffer 大小: %d 字节", sizeof(rx_buffer));
+
+
+                        ESP_LOGI(TAG, "接收数据十六进制:");
+                        for (int i = 0; i < recv_len; i++) {
+                            printf("%02x ", rx_buffer[i]);
+                        }
+                        printf("\r\n");
+
                         poll_sn_cache_bytes_to_hex(rx_buffer, recv_len, g_cmd_response[ch][cmd_idx], 256);
 
                         ESP_LOGI(TAG, "%s CH%d 命令%d 收到 [%d]: %s",
@@ -183,7 +204,7 @@ static void poll_task(void *pvParameters)
             vTaskDelay(pdMS_TO_TICKS(timer_send_interval));
         } else {
             // 未启用发送时，低频率检查
-            vTaskDelay(pdMS_TO_TICKS(100));
+            vTaskDelay(pdMS_TO_TICKS(1000));
         }
     }
 }

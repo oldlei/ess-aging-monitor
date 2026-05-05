@@ -78,6 +78,7 @@ bool verify_frame_crc(const uint8_t *frame, size_t len) {
 bool poll_sn_cache_parse(uint8_t channel, const uint8_t *data, int len)
 {
     if (!verify_frame_crc(data,len)) return false;
+    memcpy(sn_cache[channel].sn, &data[45], 30);
     sn_cache[channel].sn_check = crc16_modbus(&data[45],30);
     sn_cache[channel].sn_len = 30;
     sn_cache[channel].valid = true;
@@ -122,6 +123,8 @@ void poll_sn_cache_bytes_to_hex(const uint8_t *data, int len, char *out, int out
             if (i == len - 1 && pos + 2 <= out_len) {
                 // 写最后一个字节（无空格）
                 snprintf(out + pos, out_len - pos, "%02X", data[i]);
+                // =====
+                printf("%02X", data[i]);
             }
             break;
         }
@@ -188,4 +191,20 @@ void poll_sn_cache_clear_response(uint8_t channel)
 const char (*poll_sn_cache_get_all_responses(uint8_t channel))[POLL_CMD_COUNT][400]
 {
     return &cmd_response[channel];
+}
+
+
+void poll_sn_cache_bytes_to_string(const uint8_t *bytes, int len, char *out, int out_len)
+{
+    // 清空缓冲区（防止残留）
+    memset(out, 0, out_len);
+
+    int offset = 0;
+    for (int i = 0; i < len && offset < out_len - 2; i++) {
+        // ✅ snprintf 限制长度，绝对安全
+        offset += snprintf(out + offset, out_len - offset, "%02x", bytes[i]);
+    }
+
+    // 强制结束符
+    out[out_len - 1] = '\0';
 }

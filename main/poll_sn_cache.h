@@ -118,4 +118,17 @@ void poll_sn_cache_bytes_to_hex(const uint8_t *data, int len, char *out, int out
  */
 void poll_sn_cache_clear_force_update(void);
 
+
+/**
+ * @brief 将字节数组转换为十六进制字符串
+ *
+ * 将二进制数据转换为可读的十六进制格式，字节间用空格分隔。
+ * 例如：[0x12, 0x34, 0xAB] -> "12 34 AB"
+ *
+ * @param data 输入数据指针
+ * @param len 输入数据长度
+ * @param out 输出字符串缓冲区
+ */
+void poll_sn_cache_bytes_to_string(const uint8_t *data, int len, char *out, int out_len);
+
 #endif  // POLL_SN_CACHE_H

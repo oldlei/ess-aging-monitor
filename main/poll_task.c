@@ -154,14 +154,42 @@ static void poll_task(void *pvParameters)
             if (current_uart_mode == UART_MODE_RS485) {
                 // RS485 模式：包含 SN 字段
                 const channel_sn_t *sn = poll_sn_cache_get(ch);
-                char sn_hex[64] = "";
+                char sn_temp_str[31] = "";
+
+                // 直接循环打印 SN 字节数组（原始十六进制）
+                for (int i = 0; i < sn->sn_len; i++) {
+                    printf("%02x ", sn->sn[i]);
+                }
+                printf("\n");
+
+                ESP_LOGI("POLL_TASK", "SN valid:%d, len:%d, sn:%s, check:0x%04X",sn->valid,sn->sn_len,sn_temp_str,sn->sn_check);
+
+
+
+
+                // char sn_hex[64] = "";
                 if (sn->valid) {
-                    poll_sn_cache_bytes_to_hex(sn->sn, sn->sn_len, sn_hex, sizeof(sn_hex));
+                    printf("sn_str== %s",sn_temp_str);
+                    poll_sn_cache_bytes_to_string(sn->sn,30,sn_temp_str,32);
+                    printf("sn_str== %s",sn_temp_str);
+
+
+                    // // TODO  SN是空的
+                    // char sn_str1[31] = "";
+                    // uint8_t sn1[2] = {0x12 ,0x23};
+                    // // 直接拷贝
+                    // memcpy(sn_str, sn->sn, 30);
+                    //
+                    // // 必须加结束符！
+                    // sn_str[30] = '\0';
+                    //
+                    // printf("===================");
+                    // poll_sn_cache_bytes_to_hex(sn->sn, sn->sn_len, sn_hex, sizeof(sn_hex));
                 }
 
                 snprintf(mqtt_payload, sizeof(mqtt_payload),
                          "{\"ch\":%d,\"SN\":\"%s\",\"cmd1\":\"%s\",\"cmd2\":\"%s\",\"cmd3\":\"%s\",\"cmd4\":\"%s\"}",
-                         ch, sn_hex,
+                         ch, sn_temp_str,
                          g_cmd_response[ch][0], g_cmd_response[ch][1],
                          g_cmd_response[ch][2], g_cmd_response[ch][3]);
             } else {

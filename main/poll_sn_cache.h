@@ -23,9 +23,6 @@
 // 通道数量
 #define CHANNEL_COUNT 4
 
-// SN 长度
-#define SN_LENGTH      16
-
 // SN 更新间隔（10分钟）
 #define SN_UPDATE_INTERVAL_MS  600000
 
@@ -35,7 +32,8 @@
 typedef struct {
     bool valid;                    ///< 缓存是否有效
     uint32_t last_update_tick;    ///< 上次更新时间
-    uint8_t sn[SN_LENGTH];         ///< SN 数据
+    uint8_t sn[30];         ///< SN 数据
+    uint16_t sn_check; ///< SN校验值
     uint8_t sn_len;               ///< SN 长度
 } channel_sn_t;
 
@@ -70,6 +68,23 @@ const channel_sn_t* poll_sn_cache_get(uint8_t channel);
  * @return true 需要更新，false 可以使用缓存
  */
 bool poll_sn_cache_need_update(uint8_t channel);
+
+/**
+ * @brief 计算 Modbus CRC-16
+ * @param data 待校验的数据指针（不包含CRC字节）
+ * @param len  数据长度（字节数）
+ * @return uint16_t CRC值（低字节在前，高字节在后）
+ */
+uint16_t crc16_modbus(const uint8_t *data, size_t len);
+
+/**
+ * @brief 验证整帧数据（包含最后两个CRC字节）
+ * @param frame 完整帧指针
+ * @param len   完整帧长度（字节数）
+ * @return true  校验通过
+ * @return false 校验失败
+ */
+bool verify_frame_crc(const uint8_t *frame, size_t len);
 
 /**
  * @brief 解析设备回复中的 SN

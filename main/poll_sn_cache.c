@@ -51,27 +51,92 @@ bool poll_sn_cache_need_update(uint8_t channel)
     return (elapsed >= SN_UPDATE_INTERVAL_MS);
 }
 
+uint16_t crc16_modbus(const uint8_t *data, size_t len) {
+    uint16_t crc = 0xFFFF;
+    for (size_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (int j = 0; j < 8; j++) {
+            if (crc & 1) {
+                crc = (crc >> 1) ^ 0xA001;   // 0xA001 = 0x8005 反转
+            } else {
+                crc >>= 1;
+            }
+        }
+    }
+    return crc;
+}
+
+bool verify_frame_crc(const uint8_t *frame, size_t len) {
+    if (len < 2) return false;
+    size_t data_len = len - 2;
+    uint16_t calc_crc = crc16_modbus(frame, data_len);
+    // 提取帧中存储的CRC（低字节在前）
+    uint16_t recv_crc = (uint16_t)frame[data_len] | ((uint16_t)frame[data_len + 1] << 8);
+    return calc_crc == recv_crc;
+}
+
 bool poll_sn_cache_parse(uint8_t channel, const uint8_t *data, int len)
 {
-    // 假设 SN 在 data[8] ~ data[15]，共 8 字节
-    // TODO: 根据实际协议修改此处
-    if (len < 16) return false;
-
-    memcpy(sn_cache[channel].sn, &data[8], 8);
-    sn_cache[channel].sn_len = 8;
+    if (!verify_frame_crc(data,len)) return false;
+    sn_cache[channel].sn_check = crc16_modbus(&data[45],30);
+    sn_cache[channel].sn_len = 30;
     sn_cache[channel].valid = true;
     sn_cache[channel].last_update_tick = xTaskGetTickCount();
-
     return true;
 }
 
+/**
+ * @brief 将二进制数据转换为空格分隔的十六进制字符串（如：01 02 AB CD）
+ * @param data  原始二进制数据
+ * @param len   数据长度
+ * @param out   输出字符串缓冲区
+ * @param out_len 输出缓冲区最大长度（包含结束符）
+ * @note 输出格式：每个字节占 2 个十六进制字符 + 1 个空格，最后一个字节无空格
+ */
+// void poll_sn_cache_bytes_to_hex(const uint8_t *data, int len, char *out, int out_len)
+// {
+//     if (data == NULL || out == NULL || out_len < 2) {
+//         return;
+//     }
+//
+//     int pos = 0;
+//     for (int i = 0; i < len && pos < out_len - 1; i++) {
+//         pos += snprintf(out + pos, out_len - pos, "%02X", data[i]);
+//         if (i < len - 1) out[pos++] = ' ';
+//     }
+// }
 void poll_sn_cache_bytes_to_hex(const uint8_t *data, int len, char *out, int out_len)
 {
-    int pos = 0;
-    for (int i = 0; i < len && pos < out_len - 3; i++) {
-        pos += snprintf(out + pos, out_len - pos, "%02X", data[i]);
-        if (i < len - 1) out[pos++] = ' ';
+    if (data == NULL || out == NULL || out_len < 2) {
+        return;
     }
+
+    int pos = 0;
+    out[0] = '\0';
+
+    // 核心修复：只保证不越界，不提前截断
+    for (int i = 0; i < len; i++) {
+        // 剩余不足 3 字节（XX+空格），且不是最后一个字节 → 停止
+        if (pos + 3 > out_len) {
+            // 但！如果是最后一个字节，只需要 2 字节，依然可以写
+            if (i == len - 1 && pos + 2 <= out_len) {
+                // 写最后一个字节（无空格）
+                snprintf(out + pos, out_len - pos, "%02X", data[i]);
+            }
+            break;
+        }
+
+        // 写入十六进制
+        pos += snprintf(out + pos, out_len - pos, "%02X", data[i]);
+
+        // 不是最后一个字节才加空格
+        if (i < len - 1) {
+            out[pos++] = ' ';
+        }
+    }
+
+    // 确保字符串结束
+    out[pos] = '\0';
 }
 
 void poll_sn_cache_clear_force_update(void)

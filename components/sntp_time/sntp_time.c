@@ -204,21 +204,6 @@ int64_t sntp_time_get_timestamp(void)
     return (int64_t)now;
 }
 
-int64_t sntp_time_get_local_timestamp(void)
-{
-    if (!g_time_synced && !is_time_valid()) {
-        return -1;
-    }
-
-    time_t now;
-    time(&now);
-
-    // 加上时区偏移（秒），转换为本地时间
-    now += TIMEZONE_OFFSET * 3600;
-
-    return (int64_t)now;
-}
-
 void sntp_time_deinit(void)
 {
     if (g_check_timer_handle != NULL) {

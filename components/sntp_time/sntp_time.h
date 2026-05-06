@@ -39,13 +39,6 @@ extern "C" {
     int64_t sntp_time_get_timestamp(void);
 
     /**
-     * @brief  获取本地时间戳（秒）
-     * @note   已自动应用时区偏移（UTC + TIMEZONE_OFFSET）
-     * @return 本地时间戳，-1=未同步
-     */
-    int64_t sntp_time_get_local_timestamp(void);
-
-    /**
      * @brief  停止定时同步（释放资源）
      * @note   通常不需要调用
      */

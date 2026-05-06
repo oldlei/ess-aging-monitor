@@ -11,6 +11,9 @@
  */
 
 #include "poll_task.h"
+
+#include <sntp_time.h>
+
 #include "poll_cmd.h"
 #include "poll_sn_cache.h"
 #include "poll_uart_safe.h"
@@ -154,44 +157,24 @@ static void poll_task(void *pvParameters)
             if (current_uart_mode == UART_MODE_RS485) {
                 // RS485 模式：包含 SN 字段
                 const channel_sn_t *sn = poll_sn_cache_get(ch);
-                char sn_temp_str[31] = "";
-
-                // 直接循环打印 SN 字节数组（原始十六进制）
-                for (int i = 0; i < sn->sn_len; i++) {
-                    printf("%02x ", sn->sn[i]);
-                }
-                printf("\n");
-
+                char sn_temp_str[31] = "";// SN序列号
                 ESP_LOGI("POLL_TASK", "SN valid:%d, len:%d, sn:%s, check:0x%04X",sn->valid,sn->sn_len,sn_temp_str,sn->sn_check);
 
-
-
-
-                // char sn_hex[64] = "";
+                // todo  判断存在的必要性？是否可删除 poll_sn_cache_bytes_to_string   这里将SN转为字符串输出，改到在收到数据后直接转为字符串
                 if (sn->valid) {
-                    printf("sn_str== %s",sn_temp_str);
                     poll_sn_cache_bytes_to_string(sn->sn,30,sn_temp_str,32);
-                    printf("sn_str== %s",sn_temp_str);
-
-
-                    // // TODO  SN是空的
-                    // char sn_str1[31] = "";
-                    // uint8_t sn1[2] = {0x12 ,0x23};
-                    // // 直接拷贝
-                    // memcpy(sn_str, sn->sn, 30);
-                    //
-                    // // 必须加结束符！
-                    // sn_str[30] = '\0';
-                    //
-                    // printf("===================");
-                    // poll_sn_cache_bytes_to_hex(sn->sn, sn->sn_len, sn_hex, sizeof(sn_hex));
                 }
-
+                int64_t timestamp = sntp_time_get_timestamp();
+                uint16_t timestamp_check = crc16_modbus((const uint8_t*)timestamp, sizeof(timestamp));
+                // TODO 检查能否收到
                 snprintf(mqtt_payload, sizeof(mqtt_payload),
-                         "{\"ch\":%d,\"SN\":\"%s\",\"cmd1\":\"%s\",\"cmd2\":\"%s\",\"cmd3\":\"%s\",\"cmd4\":\"%s\"}",
-                         ch, sn_temp_str,
-                         g_cmd_response[ch][0], g_cmd_response[ch][1],
+                         "{\"ch\":%d,\"SN\":\"%s\",\"sn_check\":\"%04X\",\"time\":%llu,\"timestamp_check\":\"%04X\",\"PIA\":\"%s\",\"PIB\":\"%s\",\"PIC\":\"%s\"}",
+                         ch, sn->sn,sn->sn_check,
+                         timestamp,timestamp_check, g_cmd_response[ch][1],
                          g_cmd_response[ch][2], g_cmd_response[ch][3]);
+                printf("\r\n");
+                printf("SN:%s,SN_CHECK:%04x", sn->sn, sn->sn_check);
+                printf("\r\n");
             } else {
                 // RS232 模式：无 SN 字段
                 snprintf(mqtt_payload, sizeof(mqtt_payload),

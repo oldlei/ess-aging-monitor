@@ -77,12 +77,56 @@ bool verify_frame_crc(const uint8_t *frame, size_t len) {
 
 bool poll_sn_cache_parse(uint8_t channel, const uint8_t *data, int len)
 {
+    // ==================== 安全校验（顺序优化） ====================
+    if (!data || channel >= 4 || len < 45 + 30) {
+        return false;
+    }
+    // 1. 校验帧CRC
     if (!verify_frame_crc(data,len)) return false;
-    memcpy(sn_cache[channel].sn, &data[45], 30);
-    sn_cache[channel].sn_check = crc16_modbus(&data[45],30);
-    sn_cache[channel].sn_len = 30;
-    sn_cache[channel].valid = true;
-    sn_cache[channel].last_update_tick = xTaskGetTickCount();
+    channel_sn_t *sn = &sn_cache[channel]; // 简化结构体访问
+
+
+    memcpy(sn->sn, data + 45, 29); // 留1位给结束符
+    sn->sn[29] = '\0';
+    sn->sn_check = crc16_modbus(data + 45, 30);
+    sn->sn_len   = 30;
+    sn->valid    = true;
+    sn->last_update_tick = xTaskGetTickCount();
+
+    // // const uint8_t *sn_src = data + 45;  // 更标准的指针写法
+    //
+    // // // 直接拷贝 ASCII 字符串（高效、简洁）
+    // // memcpy(sn->sn, sn_src, 30);
+    // // // 强制字符串结束符（保证能直接 printf %s）
+    // // sn->sn_check = crc16_modbus(sn_src, 30);
+    //
+    // sn->sn[29] = '\0';
+
+
+
+    // memcpy(sn_cache[channel].sn, &data[45], 30);
+
+    // sn_cache[channel].sn_check = crc16_modbus(sn_src,30);
+    // sn_cache[channel].sn_len = 30;
+    // sn_cache[channel].valid = true;
+    // sn_cache[channel].last_update_tick = xTaskGetTickCount();
+
+    // ===================== 打印 SN 所有内容（你要的） =====================
+    ESP_LOGI("SN_PARSE", "========== CH%d SN CACHE INFO ==========", channel);
+    ESP_LOGI("SN_PARSE", "Valid:    %d", sn->valid);
+    ESP_LOGI("SN_PARSE", "SN Len:   %d", sn->sn_len);
+    ESP_LOGI("SN_PARSE", "SN ASCII: %s", sn->sn);  // 直接打印字符串
+    ESP_LOGI("SN_PARSE", "SN CRC:   0x%04X", sn->sn_check);
+    ESP_LOGI("SN_PARSE", "Update Tick: %u", sn->last_update_tick);
+
+    // 可选：打印原始十六进制（方便对照）
+    ESP_LOGI("SN_PARSE", "SN HEX: ");
+    for (int i = 0; i < sn->sn_len; i++) {
+        printf("%02x ", sn->sn[i]);
+    }
+    printf("\n===================================================\n");
+
+
     return true;
 }
 
@@ -196,15 +240,15 @@ const char (*poll_sn_cache_get_all_responses(uint8_t channel))[POLL_CMD_COUNT][4
 
 void poll_sn_cache_bytes_to_string(const uint8_t *bytes, int len, char *out, int out_len)
 {
-    // 清空缓冲区（防止残留）
-    memset(out, 0, out_len);
-
-    int offset = 0;
-    for (int i = 0; i < len && offset < out_len - 2; i++) {
-        // ✅ snprintf 限制长度，绝对安全
-        offset += snprintf(out + offset, out_len - offset, "%02x", bytes[i]);
+    // 1. 空指针 & 长度合法性判断
+    if (!out || out_len <= 1 || !bytes || len == 0) {
+        return;
     }
+    // 2. 只清空需要用的空间（比全清空更快）
+    int max_copy = (len < out_len - 1) ? len : (out_len - 1);
 
-    // 强制结束符
-    out[out_len - 1] = '\0';
+    // 3. 直接拷贝 ASCII（最简洁、最高效）
+    memcpy(out, bytes, max_copy);
+    // 4. 字符串结束符（必须）
+    out[max_copy] = '\0';
 }

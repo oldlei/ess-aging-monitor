@@ -98,8 +98,8 @@ static void poll_task(void *pvParameters)
 
                 // RS485 需要附加通道号（用于目标设备识别）
                 if (current_uart_mode == UART_MODE_RS485) {
-                    tx_buffer[tx_len] = (uint8_t)ch;
-                    tx_len++;
+                    // tx_buffer[tx_len] = (uint8_t)ch;
+                    // tx_len++;
                 }
 
                 // 发送命令并接收回复

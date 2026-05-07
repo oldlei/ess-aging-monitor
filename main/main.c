@@ -5,10 +5,11 @@
 #include "mqtt_cmd.h"
 #include "poll_task.h"
 #include "sntp_time.h"
+#include "common.h"
 
 #define TAG "MAIN"
-#define UART_BAUD_RATE 115200
-#define MQTT_BROKER_URI "mqtt://192.168.4.6"
+#define UART_BAUD_RATE 19200
+
 
 void app_main(void)
 {
@@ -39,7 +40,7 @@ void app_main(void)
     ESP_LOGI(TAG, "串口初始化成功");
 
     // MQTT 初始化
-    mqtt_wrapper_init(MQTT_BROKER_URI);
+    mqtt_wrapper_init(MQTT_BROKER_URI, MQTT_CLIENT_ID);
     while (!mqtt_wrapper_is_connected()) {
         vTaskDelay(pdMS_TO_TICKS(500));
     }

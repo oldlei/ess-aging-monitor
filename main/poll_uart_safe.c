@@ -22,6 +22,15 @@
  */
 int rs485_write_safe(uint8_t *data, int len)
 {
+    // ========== 打印开始 ==========
+    printf("RS485 发送: len=%d | data(hex): ", len);
+    for (int i = 0; i < len; i++) {
+        printf("%02X ", data[i]);
+    }
+    printf("\n");
+    // ========== 打印结束 ==========
+
+
     int result = -1;
     uart_instance_t *inst = uart_get_rs485();
     if (inst->mutex && xSemaphoreTake(inst->mutex, pdMS_TO_TICKS(100)) == pdTRUE) {

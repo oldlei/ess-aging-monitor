@@ -85,11 +85,16 @@ bool poll_sn_cache_parse(uint8_t channel, const uint8_t *data, int len)
     if (!verify_frame_crc(data,len)) return false;
     channel_sn_t *sn = &sn_cache[channel]; // 简化结构体访问
 
-
-    memcpy(sn->sn, data + 45, 29); // 留1位给结束符
-    sn->sn[29] = '\0';
-    sn->sn_check = crc16_modbus(data + 45, 30);
-    sn->sn_len   = 30;
+    const uint8_t *src = data + 45;
+    int real_len = 0;
+    while (real_len < 30 && src[real_len] != 0x00) {
+        real_len++;
+    }
+    memcpy(sn->sn, src, real_len);      // 只复制有效字符
+    sn->sn[real_len] = '\0';            // 字符串结束符
+    // CRC 只校验【有效长度】（不含后面00）
+    sn->sn_check = crc16_modbus(src, real_len);
+    sn->sn_len   = real_len; // 有效长度
     sn->valid    = true;
     sn->last_update_tick = xTaskGetTickCount();
 
@@ -235,20 +240,4 @@ void poll_sn_cache_clear_response(uint8_t channel)
 const char (*poll_sn_cache_get_all_responses(uint8_t channel))[POLL_CMD_COUNT][400]
 {
     return &cmd_response[channel];
-}
-
-
-void poll_sn_cache_bytes_to_string(const uint8_t *bytes, int len, char *out, int out_len)
-{
-    // 1. 空指针 & 长度合法性判断
-    if (!out || out_len <= 1 || !bytes || len == 0) {
-        return;
-    }
-    // 2. 只清空需要用的空间（比全清空更快）
-    int max_copy = (len < out_len - 1) ? len : (out_len - 1);
-
-    // 3. 直接拷贝 ASCII（最简洁、最高效）
-    memcpy(out, bytes, max_copy);
-    // 4. 字符串结束符（必须）
-    out[max_copy] = '\0';
 }

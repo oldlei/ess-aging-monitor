@@ -19,9 +19,10 @@ extern "C" {
     /**
      * @brief  初始化 MQTT 客户端
      * @param  broker_uri MQTT 代理地址，如 "mqtt://mqtt.eclipseprojects.io"
+     * @param  client_id MQTT ID
      * @return esp_err_t
      */
-    esp_err_t mqtt_wrapper_init(const char *broker_uri);
+    esp_err_t mqtt_wrapper_init(const char *broker_uri, const char *client_id);
 
     /**
      * @brief  订阅 MQTT 主题

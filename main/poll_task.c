@@ -24,16 +24,15 @@
 #include "mqtt_wrapper.h"
 #include <string.h>
 #include <stdio.h>
+#include "common.h"
 
 // 日志标签
 #define TAG "POLL_TASK"
 
 // 等待回复超时时间（毫秒）
-#define RESPONSE_TIMEOUT_MS 500
+#define RESPONSE_TIMEOUT_MS 800
 
-// MQTT 主题定义
-#define MQTT_TOPIC_RS485 "uart/rs485"  ///< RS485 模式 MQTT 主题
-#define MQTT_TOPIC_RS232 "uart/rs232"   ///< RS232 模式 MQTT 主题
+
 
 // 定时发送控制（供外部访问）
 volatile bool timer_send_enabled = false;
@@ -67,11 +66,13 @@ static void poll_task(void *pvParameters)
         if (timer_send_enabled) {
             // 根据当前 UART 模式选择 MUX 类型和 MQTT 主题
             mux_type_t mux_type = (current_uart_mode == UART_MODE_RS485) ? MUX_TYPE_RS485 : MUX_TYPE_RS232;
-            const char *mqtt_topic = (current_uart_mode == UART_MODE_RS485) ? MQTT_TOPIC_RS485 : MQTT_TOPIC_RS232;
+            const char *mqtt_topic = (current_uart_mode == UART_MODE_RS485) ? MQTT_TOPIC_RS485(MQTT_CLIENT_ID) : MQTT_TOPIC_RS232;
             const char *mode_name = (current_uart_mode == UART_MODE_RS485) ? "RS485" : "RS232";
 
             // 获取下一个要轮询的通道
             mux_channel_t ch = mux_next_channel(mux_type);
+            // ★ 添加延时让 MUX 稳定 ★
+            vTaskDelay(pdMS_TO_TICKS(10));  // 等待 MUX 切换稳定
             ESP_LOGI(TAG, "%s 轮询通道 %d", mode_name, ch);
 
             // 清空该通道的回复缓存
@@ -105,6 +106,14 @@ static void poll_task(void *pvParameters)
                 int sent_len;
                 int recv_len;
                 if (current_uart_mode == UART_MODE_RS485) {
+                    // ========== 打印开始 ==========
+                    printf("RS485 发送: len=%d | data(hex): ", tx_len);
+                    for (int i = 0; i < tx_len; i++) {
+                        printf("%02X ", tx_buffer[i]);
+                    }
+                    printf("\n");
+                    // ========== 打印结束 ==========
+
                     sent_len = rs485_write_safe(tx_buffer, tx_len);
                     if (sent_len > 0) {
                         ESP_LOGI(TAG, "RS485 CH%d 发送命令%d", ch, cmd_idx + 1);
@@ -156,25 +165,33 @@ static void poll_task(void *pvParameters)
             char mqtt_payload[2200];
             if (current_uart_mode == UART_MODE_RS485) {
                 // RS485 模式：包含 SN 字段
-                const channel_sn_t *sn = poll_sn_cache_get(ch);
-                char sn_temp_str[31] = "";// SN序列号
-                ESP_LOGI("POLL_TASK", "SN valid:%d, len:%d, sn:%s, check:0x%04X",sn->valid,sn->sn_len,sn_temp_str,sn->sn_check);
 
-                // todo  判断存在的必要性？是否可删除 poll_sn_cache_bytes_to_string   这里将SN转为字符串输出，改到在收到数据后直接转为字符串
-                if (sn->valid) {
-                    poll_sn_cache_bytes_to_string(sn->sn,30,sn_temp_str,32);
-                }
+                const channel_sn_t *sn = poll_sn_cache_get(ch);
+
+                // if (sn->valid) {
+                //     // poll_sn_cache_bytes_to_string(sn->sn,30,sn_temp_str,32);
+                // }
                 int64_t timestamp = sntp_time_get_timestamp();
-                uint16_t timestamp_check = crc16_modbus((const uint8_t*)timestamp, sizeof(timestamp));
-                // TODO 检查能否收到
+                uint32_t ts32 = (uint32_t)timestamp;
+                uint8_t data_ts[4] = {
+                    (uint8_t)(ts32 & 0xFF),
+                    (uint8_t)((ts32 >> 8) & 0xFF),
+                    (uint8_t)((ts32 >> 16) & 0xFF),
+                    (uint8_t)((ts32 >> 24) & 0xFF)
+                };
+                uint16_t timestamp_check = crc16_modbus(data_ts,sizeof(data_ts));
+                // 拼接MQTT payload（安全、精简、规范）
                 snprintf(mqtt_payload, sizeof(mqtt_payload),
-                         "{\"ch\":%d,\"SN\":\"%s\",\"sn_check\":\"%04X\",\"time\":%llu,\"timestamp_check\":\"%04X\",\"PIA\":\"%s\",\"PIB\":\"%s\",\"PIC\":\"%s\"}",
-                         ch, sn->sn,sn->sn_check,
-                         timestamp,timestamp_check, g_cmd_response[ch][1],
-                         g_cmd_response[ch][2], g_cmd_response[ch][3]);
-                printf("\r\n");
-                printf("SN:%s,SN_CHECK:%04x", sn->sn, sn->sn_check);
-                printf("\r\n");
+                         "{\"ch\":%d,\"bms_sn\":\"%s\",\"sn_verify\":\"%04X\",\"time\":%llu,\"time_verify\":\"%04X\",\"via \":\"%s\",\"pia\":\"%s\",\"pib\":\"%s\",\"pic\":\"%s\"}",
+                         ch,
+                         sn->sn,
+                         sn->sn_check,
+                         timestamp,
+                         timestamp_check,
+                         g_cmd_response[ch][0],
+                         g_cmd_response[ch][1],
+                         g_cmd_response[ch][2],
+                         g_cmd_response[ch][3]);
             } else {
                 // RS232 模式：无 SN 字段
                 snprintf(mqtt_payload, sizeof(mqtt_payload),
@@ -183,7 +200,9 @@ static void poll_task(void *pvParameters)
                          g_cmd_response[ch][0], g_cmd_response[ch][1],
                          g_cmd_response[ch][2], g_cmd_response[ch][3]);
             }
-
+            printf("========/r/n");
+            printf("mqtt_topic:%s",mqtt_topic);
+            printf("========/r/n");
             // 发布 MQTT 消息
             mqtt_wrapper_publish(mqtt_topic, mqtt_payload, strlen(mqtt_payload));
             ESP_LOGI(TAG, "%s CH%d MQTT已发布", mode_name, ch);

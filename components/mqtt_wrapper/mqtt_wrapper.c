@@ -53,7 +53,7 @@ static void mqtt_event_handler(void* handler_args, esp_event_base_t base,
 }
 
 // ==================== 初始化 MQTT 客户端 ====================
-esp_err_t mqtt_wrapper_init(const char *broker_uri)
+esp_err_t mqtt_wrapper_init(const char *broker_uri, const char *client_id)
 {
     if (mqtt_client != NULL) {
         ESP_LOGW(TAG, "MQTT 客户端已初始化");
@@ -62,6 +62,9 @@ esp_err_t mqtt_wrapper_init(const char *broker_uri)
 
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = broker_uri,
+        .credentials = {
+            .client_id = client_id,  // 添加这行
+        },
     };
 
     mqtt_client = esp_mqtt_client_init(&mqtt_cfg);

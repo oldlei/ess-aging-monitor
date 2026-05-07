@@ -92,7 +92,7 @@ int rs485_write(uint8_t *data, size_t len)
     
     // 等待发送完成
     uart_wait_tx_done(RS485_UART_PORT, pdMS_TO_TICKS(100));
-    ets_delay_us(500);
+    ets_delay_us(800);
 
     if (write_len > 0) {
         ESP_LOGD(TAG, "写入 %d 字节数据", write_len);

@@ -6,7 +6,7 @@
 #define ESS_AGING_MONITOR_COMMON_H
 
 #define MQTT_BROKER_URI "mqtt://192.168.4.6"
-#define MQTT_CLIENT_ID "id001"
+#define MQTT_CLIENT_ID "id002"
 
 // MQTT 主题定义
 // #define MQTT_TOPIC_RS485 "uart/rs485"  ///< RS485 模式 MQTT 主题
